@@ -11,6 +11,7 @@ function fusion(clips)
     .then(function(clips)
     {
         console.log(clips)
+        merge(clips)
     })
     .catch(function(error)
     {
@@ -29,18 +30,42 @@ function trim(clip)
         trimming.setDuration(clip.length - clip.trim.left - clip.trim.right)
         trimming.addOutput("./clips/" + clip.clip_id + ".mp4")
     
-        trimming.on("end", function() {
+        trimming.on("end", function()
+        {
             clip.file = "./clips/" + clip.clip_id + ".mp4"
             clip.length = clip.length - clip.trim.left - clip.trim.right
             delete clip.trim
             resolve(clip)
         })
-        trimming.on("error", function(error, stdout, stderr) {
+        trimming.on("error", function(error, stdout, stderr)
+        {
             reject(stderr.replace(/[\r\n]/g, "\n"))
         })
         
         trimming.run()
     })
+}
+
+function merge(clips)
+{
+    var merging = new FluentFfmpeg()
+    
+    for(var index in clips)
+    {
+        var clip = clips[index]
+        merging.addInput(clip.file)
+    }
+    
+    merging.on("end", function()
+    {
+        console.log("OK!")
+    })
+    merging.on("error", function(error, stdout, stderr)
+    {
+        console.log("stderr", stderr.replace(/[\r\n]/g, "\n"))
+    })
+    
+    merging.mergeToFile("./clips/x.mp4", "./clips")
 }
 
 fusion([
@@ -63,3 +88,17 @@ fusion([
         "length": 8.56
     }
 ])
+
+/*merge([
+    {
+        clip_id: '123',
+        file: './clips/123.mp4',
+        length: 6.0600000000000005
+    },
+    {
+        clip_id: '456',
+        file: './clips/456.mp4',
+        length: 7.0600000000000005
+    }
+])*/
+
