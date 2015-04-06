@@ -1,0 +1,12 @@
+{
+  "name": "fusion",
+  "version": "0.0.0",
+  "dependencies": {
+    "fluent-ffmpeg": "~2.0.0-rc3",
+    "bluebird": "~2.9.24"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/viditor/fusion"
+  }
+}
