@@ -121,9 +121,12 @@ function merge(clips)
     })
     
     merging.mergeToFile("./clips/x.mp4", "./clips")
+    
+    //todo: promisify function
+    //todo: return clip w/ file
 }
 
-fusion([
+/*fusion([
     {
         "clip_id": "123",
         "file": "./assets/1.flv",
@@ -142,17 +145,77 @@ fusion([
         },
         "length": 8.56
     }
-])
+])*/
 
-/*merge([
+function transform(width, height, clips)
+{
+    return new Bluebird(function(resolve, reject)
     {
-        clip_id: '123',
-        file: './clips/123.mp4',
-        length: 6.0600000000000005
+        var transforming = new FluentFfmpeg()
+        
+        transforming.addInput("./assets/1.flv")
+        transforming.addInput("./assets/2.flv")
+        transforming.addOutput("./clips/Q.mp4")
+        
+        transforming.complexFilter([
+            "nullsrc=size=1280x720 [base]",
+            "[0:v] setpts=PTS-STARTPTS, scale=1280x720 [video-0]",
+            "[1:v] setpts=PTS-STARTPTS, scale=320x100 [video-1]",
+            "[base][video-0] overlay=shortest=1:x=0:y=0 [temp-0]",
+            "[temp-0][video-1] overlay=shortest=1:x=1280-320:y=0 [temp-1]",
+            "[0:a][1:a] amix [temp-audio-0]"
+        ], ["temp-1", "temp-audio-0"])
+        
+        transforming.on("end", function()
+        {
+            var clip = {
+                "clip_id": "Q",
+                file: "./clips/" + "Q" + ".mp4"
+            }
+            resolve(clip)
+        })
+        
+        transforming.on("error", function(error, stdout, stderr)
+        {
+            console.log("stderr", stderr.replace(/[\r\n]/g, "\n"))
+        })
+        
+        transforming.run()
+    })
+    
+    //todo: read from parameters
+    //todo: use better json format
+}
+
+transform(1280, 720, [
+    {
+        "clip_id": "123",
+        "file": "./assets/1.flv",
+        "length": 8.06,
+        "position": {
+            "x": 0,
+            "y": 0
+        },
+        "dimensions": {
+            "width": 640,
+            "height": 360
+        }
     },
     {
-        clip_id: '456',
-        file: './clips/456.mp4',
-        length: 7.0600000000000005
+        "clip_id": "456",
+        "file": "./assets/2.flv",
+        "length": 8.56,
+        "position": {
+            "x": 640,
+            "y": 360
+        },
+        "dimensions": {
+            "width": 640,
+            "height": 360
+        }
     }
-])*/
+])
+.then(function(clip)
+{
+    console.log(clip)
+})
