@@ -7,10 +7,11 @@ function fusion(clips)
     Bluebird.map(clips, function(clip)
     {
         return trim(clip)
+            .then(scale)
+            .then(sample)
     })
     .then(function(clips)
     {
-        console.log(clips)
         merge(clips)
     })
     .catch(function(error)
@@ -43,6 +44,60 @@ function trim(clip)
         })
         
         trimming.run()
+    })
+}
+
+function scale(clip)
+{
+    var x = 1280
+    var y = 720
+    var color = "black"
+    
+    return new Bluebird(function(resolve, reject)
+    {
+        var scaling = new FluentFfmpeg()
+        
+        scaling.addInput(clip.file)
+        scaling.withSize(x + "x" + y).withAutopadding(color)
+        scaling.addOutput("./clips/" + clip.clip_id + "-" + x + "x" + y + ".mp4")
+    
+        scaling.on("end", function()
+        {
+            clip.file = "./clips/" + clip.clip_id + "-" + x + "x" + y + ".mp4"
+            resolve(clip)
+        })
+        scaling.on("error", function(error, stdout, stderr)
+        {
+            reject(stderr.replace(/[\r\n]/g, "\n"))
+        })
+        
+        scaling.run()
+    })
+}
+
+
+function sample(clip)
+{
+    return new Bluebird(function(resolve, reject)
+    {
+        var sampling = new FluentFfmpeg()
+        
+        sampling.addInput(clip.file)
+        sampling.withVideoFilters("setsar=sar=1/1")
+        sampling.addOutput("./clips/" + clip.clip_id + "-1by1" + ".mp4")
+        
+        sampling.on("end", function()
+        {
+            clip.file = "./clips/" + clip.clip_id + "-1by1" + ".mp4"
+            resolve(clip)
+        })
+        
+        sampling.on("error", function(error, stdout, stderr)
+        {
+            reject(stderr.replace(/[\r\n]/g, "\n"))
+        })
+        
+        sampling.run()
     })
 }
 
@@ -101,4 +156,3 @@ fusion([
         length: 7.0600000000000005
     }
 ])*/
-
