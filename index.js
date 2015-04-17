@@ -1,22 +1,33 @@
 var path = require("path")
+var shortid = require("shortid")
 var Bluebird = require("bluebird")
 var FluentFfmpeg = require("fluent-ffmpeg")
 
-function fusion(clips)
+function fusion(data)
 {
-    Bluebird.map(clips, function(clip)
+    return new Bluebird(function(resolve, reject)
     {
-        return trim(clip)
-            .then(scale)
-            .then(sample)
-    })
-    .then(function(clips)
-    {
-        merge(clips)
-    })
-    .catch(function(error)
-    {
-        console.log(error)
+        var width = data.width
+        var height = data.height
+        var clips = data.clips
+        
+        Bluebird.map(clips, function(clip)
+        {
+            //return trim(clip)
+            return clip
+        })
+        .map(function(clip)
+        {
+            return transform(width, height, clip)
+        })
+        .then(function(clips)
+        {
+            return merge(clips)
+        })
+        .then(function(clip)
+        {
+            resolve(clip)
+        })
     })
 }
 
@@ -24,172 +35,134 @@ function trim(clip)
 {
     return new Bluebird(function(resolve, reject)
     {
-        var trimming = new FluentFfmpeg()
-        
-        trimming.addInput(clip.file)
-        trimming.setStartTime(clip.trim.left)
-        trimming.setDuration(clip.length - clip.trim.left - clip.trim.right)
-        trimming.addOutput("./clips/" + clip.clip_id + ".mp4")
-    
-        trimming.on("end", function()
+        if(clip.trim != undefined)
         {
-            clip.file = "./clips/" + clip.clip_id + ".mp4"
-            clip.length = clip.length - clip.trim.left - clip.trim.right
-            delete clip.trim
+            var process = new FluentFfmpeg()
+            
+            var new_clip = {
+                "clip_id": clip.clip_id
+            }
+            
+            process.addInput(clip.file)
+            process.setStartTime(clip.trim.left)
+            
+            new_clip.length = clip.length - clip.trim.left - clip.trim.right
+            process.setDuration(new_clip.length)
+            
+            new_clip.file = "./clips/" + new_clip.clip_id + ".mp4"
+            process.addOutput(new_clip.file)
+            
+            process.on("error", function(error, stdout, stderr)
+            {
+                reject(stderr.replace(/[\r\n]/g, "\n"))
+            })
+            
+            process.on("end", function()
+            {
+                resolve(new_clip)
+            })
+            
+            process.run()
+        }
+        else
+        {
             resolve(clip)
-        })
-        trimming.on("error", function(error, stdout, stderr)
-        {
-            reject(stderr.replace(/[\r\n]/g, "\n"))
-        })
-        
-        trimming.run()
+        }
     })
 }
-
-function scale(clip)
-{
-    var x = 1280
-    var y = 720
-    var color = "black"
-    
-    return new Bluebird(function(resolve, reject)
-    {
-        var scaling = new FluentFfmpeg()
-        
-        scaling.addInput(clip.file)
-        scaling.withSize(x + "x" + y).withAutopadding(color)
-        scaling.addOutput("./clips/" + clip.clip_id + "-" + x + "x" + y + ".mp4")
-    
-        scaling.on("end", function()
-        {
-            clip.file = "./clips/" + clip.clip_id + "-" + x + "x" + y + ".mp4"
-            resolve(clip)
-        })
-        scaling.on("error", function(error, stdout, stderr)
-        {
-            reject(stderr.replace(/[\r\n]/g, "\n"))
-        })
-        
-        scaling.run()
-    })
-}
-
-
-function sample(clip)
-{
-    return new Bluebird(function(resolve, reject)
-    {
-        var sampling = new FluentFfmpeg()
-        
-        sampling.addInput(clip.file)
-        sampling.withVideoFilters("setsar=sar=1/1")
-        sampling.addOutput("./clips/" + clip.clip_id + "-1by1" + ".mp4")
-        
-        sampling.on("end", function()
-        {
-            clip.file = "./clips/" + clip.clip_id + "-1by1" + ".mp4"
-            resolve(clip)
-        })
-        
-        sampling.on("error", function(error, stdout, stderr)
-        {
-            reject(stderr.replace(/[\r\n]/g, "\n"))
-        })
-        
-        sampling.run()
-    })
-}
-
-function merge(clips)
-{
-    var merging = new FluentFfmpeg()
-    
-    for(var index in clips)
-    {
-        var clip = clips[index]
-        merging.addInput(clip.file)
-    }
-    
-    merging.on("end", function()
-    {
-        console.log("OK!")
-    })
-    merging.on("error", function(error, stdout, stderr)
-    {
-        console.log("stderr", stderr.replace(/[\r\n]/g, "\n"))
-    })
-    
-    merging.mergeToFile("./clips/x.mp4", "./clips")
-    
-    //todo: promisify function
-    //todo: return clip w/ file
-}
-
-/*fusion([
-    {
-        "clip_id": "123",
-        "file": "./assets/1.flv",
-        "trim": {
-            "left": 2,
-            "right": 0
-        },
-        "length": 8.06
-    },
-    {
-        "clip_id": "456",
-        "file": "./assets/2.flv",
-        "trim": {
-            "left": 0,
-            "right": 1.5
-        },
-        "length": 8.56
-    }
-])*/
 
 function transform(width, height, clips)
 {
     return new Bluebird(function(resolve, reject)
     {
-        var transforming = new FluentFfmpeg()
+        var process = new FluentFfmpeg()
         
-        transforming.addInput("./assets/1.flv")
-        transforming.addInput("./assets/2.flv")
-        transforming.addOutput("./clips/Q.mp4")
+        var new_clip = {
+            "clip_id": shortid.generate()
+        }
         
-        transforming.complexFilter([
-            "nullsrc=size=1280x720 [base]",
-            "[0:v] setpts=PTS-STARTPTS, scale=1280x720 [video-0]",
-            "[1:v] setpts=PTS-STARTPTS, scale=320x100 [video-1]",
-            "[base][video-0] overlay=shortest=1:x=0:y=0 [temp-0]",
-            "[temp-0][video-1] overlay=shortest=1:x=1280-320:y=0 [temp-1]",
-            "[0:a][1:a] amix [temp-audio-0]"
-        ], ["temp-1", "temp-audio-0"])
+        var initiate_filters = []
+        var overlay_filters = []
+        var audio_filters = []
         
-        transforming.on("end", function()
+        initiate_filters.push("nullsrc=size=" + width + "x" + height + "[new-video-0]")
+        //audio_filters.push("[0:a][1:a] amix [new-audio-0]")
+        //final_audio = "new-audio-0"
+        final_video = ""
+        
+        new_clip.length = Number.MAX_VALUE
+        for(var index in clips)
         {
-            var clip = {
-                "clip_id": "Q",
-                file: "./clips/" + "Q" + ".mp4"
-            }
-            resolve(clip)
+            var clip = clips[index]
+            process.addInput(clip.file)
+            initiate_filters.push("[" + index + ":v] setpts=PTS-STARTPTS, scale=" + clip.dimensions.width + "x" + clip.dimensions.height + " [video-" + index + "]")
+            overlay_filters.push("[new-video-" + index + "][video-" + index + "] overlay=shortest=1:x=" + clip.position.x + ":y=" + clip.position.y + " [new-video-" + (parseInt(index) + 1) + "]")
+            final_video = "new-video-" + (parseInt(index) + 1)
+            new_clip.length = Math.min(new_clip.length, clip.length)
+        }
+        
+        new_clip.file = "./clips/" + new_clip.clip_id + ".mp4"
+        process.addOutput(new_clip.file)
+        
+        var filters = initiate_filters.concat(overlay_filters)
+        process.complexFilter(filters, [final_video, final_audio])
+        
+        process.on("end", function()
+        {
+            resolve(new_clip)
         })
         
-        transforming.on("error", function(error, stdout, stderr)
+        process.on("error", function(error, stdout, stderr)
         {
-            console.log("stderr", stderr.replace(/[\r\n]/g, "\n"))
+            reject(error)
         })
         
-        transforming.run()
+        process.run()
     })
     
-    //todo: read from parameters
+    //todo: re-add audio
     //todo: use better json format
+    //todo: switch shortest to longest
+    //todo: handle null position/dimensions
 }
 
-transform(1280, 720, [
+function merge(clips)
+{
+    return new Bluebird(function(resolve, reject)
     {
-        "clip_id": "123",
+        var process = new FluentFfmpeg()
+        
+        var new_clip = {
+            "clip_id": shortid.generate()
+        }
+        
+        new_clip.length = 0
+        for(var index in clips)
+        {
+            var clip = clips[index]
+            process.addInput(clip.file)
+            new_clip.length += clip.length
+        }
+        
+        process.on("error", function(error, stdout, stderr)
+        {
+            reject(stderr.replace(/[\r\n]/g, "\n"))
+        })
+        
+        process.on("end", function()
+        {
+            resolve(new_clip)
+        })
+        
+        new_clip.file = "./clips/" + new_clip.clip_id + ".mp4"
+        process.mergeToFile(new_clip.file, "./clips")
+    })
+}
+
+transform(1280, 720,
+[
+    {
+        "clip_id": "789",
         "file": "./assets/1.flv",
         "length": 8.06,
         "position": {
@@ -202,7 +175,7 @@ transform(1280, 720, [
         }
     },
     {
-        "clip_id": "456",
+        "clip_id": "0AB",
         "file": "./assets/2.flv",
         "length": 8.56,
         "position": {
@@ -219,3 +192,70 @@ transform(1280, 720, [
 {
     console.log(clip)
 })
+.catch(function(error)
+{
+    console.log(error)
+})
+
+/*fusion({
+    width: 1280,
+    height: 720,
+    clips: [
+        {
+            "clip_id": "123",
+            "file": "./assets/1.flv",
+            "trim": {
+                "left": 2,
+                "right": 0
+            },
+            "length": 8.06
+        },
+        {
+            "clip_id": "456",
+            "file": "./assets/2.flv",
+            "trim": {
+                "left": 0,
+                "right": 1.5
+            },
+            "length": 8.56
+        },
+        {
+            subclips: [
+                {
+                    "clip_id": "789",
+                    "file": "./assets/1.flv",
+                    "length": 8.06,
+                    "position": {
+                        "x": 0,
+                        "y": 0
+                    },
+                    "dimensions": {
+                        "width": 640,
+                        "height": 360
+                    }
+                },
+                {
+                    "clip_id": "0AB",
+                    "file": "./assets/2.flv",
+                    "length": 8.56,
+                    "position": {
+                        "x": 640,
+                        "y": 360
+                    },
+                    "dimensions": {
+                        "width": 640,
+                        "height": 360
+                    }
+                }
+            ]
+        }
+    ]
+})
+.then(function(clip)
+{
+    console.log(clip)
+})
+.catch(function(error)
+{
+    console.log(error)
+})*/
