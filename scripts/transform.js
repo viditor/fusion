@@ -2,39 +2,53 @@ var ShortID = require("shortid")
 var Bluebird = require("bluebird")
 var Fluently = require("fluent-ffmpeg")
 
-function transform(video, clips)
-{
-    return new Bluebird(function(resolve, reject)
-    {
-        //handle null position/dimensions
-            //video
-                //if no dimensions
-                    //1280x270 oooor throw
-                //if no color
-                    //black
-            //clip
-                //if no position or dimensions?
-                    //center in canvas
-                //if no position, but has dimensions?
-                    //0x0? or center?
-                //if no dimensions, but position? <- rename to scale
-                    //do not scale? yeah, go from probe
-                //if no trim?
-                    //do not trim?
-        
-        var process = new Fluently()
-        
-        var new_clip = {
-            "clip_id": ShortID.generate()
+function transform(screen, clips) {
+    return new Bluebird(function(resolve, reject) {
+        screen = JSON.parse(JSON.stringify(screen))
+        if(screen.color != undefined) {
+            if(!/^#([0-9a-f]{3}){1,2}$/i.test(screen.color)) {
+                throw new Error("The color must be hex value.")
+            }
+            screen.color = screen.color.substring(1)
+            if(screen.color.length === 3) {
+                screen.color = screen.color[0] + screen.color[0]
+                             + screen.color[1] + screen.color[1]
+                             + screen.color[2] + screen.color[2]
+            }
+            screen.color = "0x" + screen.color
+        } else {
+            screen.color = "0x000000"
+        }
+        if(screen.width == undefined && screen.height == undefined) {
+            throw new Error("The video must have a width and height.")
         }
         
-        var filters = []
+        clips = JSON.parse(JSON.stringify(clips))
+        for(var index in clips) {
+            var clip = clips[index]
+            //if no position or dimensions?
+                //fit, with padding if not perfect fit
+            //if no position, but has dimensions?
+                //center
+            //if no dimensions, but position? <- rename to scale
+                //do not scale?
+            //if no trim?
+                //do not trim?
+        }
         
+        var new_clip = new Object()
+        new_clip.clip_id = ShortID.generate()
+        new_clip.file = "./clips/" + new_clip.clip_id + ".mp4"
+        
+        var process = new Fluently()
+        process.addOutput(new_clip.file)
+        
+        var filters = new Array()
         filters.push({
             "filter": "color",
             "options": {
-                "color": "0x" + (video.color || "000000"),
-                "size": video.width + "x" + video.height
+                "color": screen.color,
+                "size": screen.width + "x" + screen.height
             },
             "outputs": "nv:0"
         })
@@ -48,15 +62,12 @@ function transform(video, clips)
         })
         var video_output = "nv:0"
         var audio_output = "na:0"
-        
         for(var index in clips)
         {
             var clip = clips[index]
             process.addInput(clip.file)
-            
             video_output = "nv:" + (parseInt(index) + 1)
             audio_output = "na:" + (parseInt(index) + 1)
-            
             filters.push({
                 "filter": "trim",
                 "options": {
@@ -94,7 +105,6 @@ function transform(video, clips)
                 ],
                 "outputs": video_output
             })
-            
             filters.push({
                 "filter": "atrim",
                 "options": {
@@ -119,24 +129,14 @@ function transform(video, clips)
                 "outputs": audio_output
             })
         }
-        
-        new_clip.file = "./clips/" + new_clip.clip_id + ".mp4"
-        process.addOutput(new_clip.file)
-        
         process.complexFilter(filters, [video_output, audio_output])
         
-        process.on("error", function(error, stdout, stderr)
-        {
-            //console.log(stdout.replace(/[\r\n]/g, "\n"))
-            //console.log(stderr.replace(/[\r\n]/g, "\n"))
+        process.on("error", function(error) {
             reject(error)
         })
-        
-        process.on("end", function()
-        {
+        process.on("end", function() {
             resolve(new_clip)
         })
-        
         process.run()
     })
 }
