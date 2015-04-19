@@ -1,85 +1,11 @@
 var path = require("path")
-var shortid = require("shortid")
+var ShortID = require("shortid")
 var Bluebird = require("bluebird")
 var Fluently = require("fluent-ffmpeg")
 
-function probe(clip)
-{
-    return new Bluebird(function(resolve, reject)
-    {
-        Fluently.ffprobe(clip.file, function(error, data)
-        {
-            if(error)
-            {
-                reject(error)
-            }
-            else
-            {
-                clip.duration = data.format.duration
-                resolve(clip)
-            }
-        })
-    })
-}
-
-/*function trim(clip)
-{
-    return new Bluebird(function(resolve, reject)
-    {
-        var process = new Fluently()
-        
-        var new_clip = {
-            "file": "./clips/" + shortid.generate() + ".mp4"
-        }
-        
-        process.input(clip.file)
-        process.output(new_clip.file)
-        process.complexFilter([
-            {
-                "filter": "trim",
-                "options": {
-                    "start": clip.trim.left,
-                    "end": clip.duration - clip.trim.right
-                },
-                "inputs": "0:v",
-                "outputs": "nv:1"
-            },
-            {
-                "filter": "atrim",
-                "options": {
-                    "start": clip.trim.left,
-                    "end": clip.duration - clip.trim.right
-                },
-                "inputs": "0:a",
-                "outputs": "na:1",
-            },
-            {
-                "filter": "setpts",
-                "options": "PTS-STARTPTS",
-                "inputs": "nv:1",
-                "outputs": "nv:2"
-            },
-            {
-                "filter": "asetpts",
-                "options": "PTS-STARTPTS",
-                "inputs": "na:1",
-                "outputs": "na:2"
-            }
-        ], ["nv:2", "na:2"])
-        
-        process.on("error", function(error, stdout, stderr)
-        {
-            reject(stderr.replace(/[\r\n]/g, "\n"))
-        })
-        
-        process.on("end", function()
-        {
-            resolve(new_clip)
-        })
-        
-        process.run()
-    })
-}*/
+var trim = require("./scripts/trim.js")
+var merge = require("./scripts/merge.js")
+var probe = require("./scripts/probe.js")
 
 function transform(video, clips)
 {
@@ -104,7 +30,7 @@ function transform(video, clips)
         var process = new Fluently()
         
         var new_clip = {
-            "clip_id": shortid.generate()
+            "clip_id": ShortID.generate()
         }
         
         var filters = []
@@ -118,8 +44,12 @@ function transform(video, clips)
             "outputs": "nv:0"
         })
         filters.push({
-            "filter": "amix",
-            "outputs": "na:0"
+            "filter": "aevalsrc",
+            "options": {
+                "exprs": 0,
+                "duration": 1
+            },
+            "outputs": "[na:0]"
         })
         var video_output = "nv:0"
         var audio_output = "na:0"
@@ -215,41 +145,7 @@ function transform(video, clips)
         process.run()
     })
     
-    //todo: fix double audio bug
     //todo: merging clips
-}
-
-function merge(clips)
-{
-    return new Bluebird(function(resolve, reject)
-    {
-        var process = new Fluently()
-        
-        var new_clip = {
-            "clip_id": shortid.generate()
-        }
-        
-        new_clip.length = 0
-        for(var index in clips)
-        {
-            var clip = clips[index]
-            process.addInput(clip.file)
-            new_clip.length += clip.length
-        }
-        
-        process.on("error", function(error, stdout, stderr)
-        {
-            reject(stderr.replace(/[\r\n]/g, "\n"))
-        })
-        
-        process.on("end", function()
-        {
-            resolve(new_clip)
-        })
-        
-        new_clip.file = "./clips/" + new_clip.clip_id + ".mp4"
-        process.mergeToFile(new_clip.file, "./clips")
-    })
 }
 
 var clips = [
@@ -258,7 +154,7 @@ var clips = [
         "file": "./assets/1.flv",
         "duration": 8.056667,
         "trim": {
-            "left": 2,
+            "left": 2.056667,
             "right": 0
         },
         "position": {
@@ -275,7 +171,7 @@ var clips = [
         "file": "./assets/2.flv",
         "duration": 8.561,
         "trim": {
-            "left": 2,
+            "left": 2.561,
             "right": 0
         },
         "position": {
@@ -306,4 +202,3 @@ transform({width: 1280, height: 720}, clips).then(function(clip)
 {
     console.log(error)
 })*/
-
