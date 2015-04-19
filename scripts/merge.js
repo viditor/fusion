@@ -12,12 +12,10 @@ function merge(clips)
             "clip_id": ShortID.generate()
         }
         
-        new_clip.length = 0
         for(var index in clips)
         {
             var clip = clips[index]
             process.addInput(clip.file)
-            new_clip.length += clip.length
         }
         
         process.on("error", function(error, stdout, stderr)
