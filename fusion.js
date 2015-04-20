@@ -108,4 +108,5 @@ fusion(protovideo).then(function(video) {
 
 module.exports = fusion
 
-//todo: render [blackness] during transform?
+//todo: render [blackness] during transform
+//todo: accept data uri to file
