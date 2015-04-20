@@ -3,52 +3,33 @@ var Bluebird = require("bluebird")
 var Fluently = require("fluent-ffmpeg")
 
 var merge = require("./scripts/merge.js")
+var probe = require("./scripts/probe.js")
 var transform = require("./scripts/transform.js")
-var youtube = require("./scripts/youtube.js")
+var acquire = require("./scripts/acquire.js")
 var flatten = require("./scripts/flatten.js")
 
-function acquire(clips) {
-    return Bluebird.map(clips, function(clip, index) {
-        //if(clip.asset is a number) {}
-        //if(clip.asset.data != undefined) {} else
-        if(clip.asset.url != undefined) {
-            if(clip.asset.url.indexOf("youtube.com") != -1) {
-                return youtube(clip.asset.url).then(function(asset_file) {
-                    clip.asset.file = asset_file
-                    return clip
-                })
-            } else {
-                //http
-            }
-        } else {
-            throw new Error("Clip #" + index + " has no asset.")
-        }
-    })
-}
-
-function probe(clips) {
-    return Bluebird.map(clips, function(clip) {
-        return new Bluebird(function(resolve, reject) {
-            Fluently.ffprobe(clip.asset.file, function(error, probe) {
-                if(error) {
-                    reject(error)
-                } else {
-                    clip.duration = Math.floor(probe.format.duration)
-                    resolve(clip)
-                }
-            })
-        })
-    })
-}
-
 function fusion(protovideo) {
-    return acquire(protovideo.clips).then(probe).then(flatten).then(function(clips) {
-        return Bluebird.map(clips, function(clip) {
-            return transform(protovideo.screen, clip)
-        })
-    }).then(function(clips) {
-        return merge(clips)
+    return (function() {
+        console.log("Acquiring assets.")
+        return acquire(protovideo)
+    }())
+    .then(function(protovideo) {
+        console.log("Probing clips.")
+        return probe(protovideo)
     })
+    .then(function(protovideo) {
+        console.log("Flattening clips.")
+        return flatten(protovideo)
+    })
+    /*.then(function(clips) {
+        console.log("Transforming clips.")
+        protovideo.clips = clips
+        return transform(protovideo)
+    })
+    .then(function(clips) {
+        console.log("Merging clips.")
+        return merge(clips)
+    })*/
 }
 
 var protovideo = {
@@ -56,11 +37,17 @@ var protovideo = {
         "width": 1280,
         "height": 720
     },
+    "assets": {
+        "missing": {
+            "url": "https://www.youtube.com/watch?v=UiyDmqO59QE"
+        },
+        "late for work": {
+            "url": "https://www.youtube.com/watch?v=kfchvCyHmsc"
+        }
+    },
     "clips": [
         {
-            "asset": {
-                "url": "https://www.youtube.com/watch?v=UiyDmqO59QE"
-            },
+            "asset": "missing",
             "tick": 0,
             "track": 0,
             "trim": {
@@ -73,9 +60,7 @@ var protovideo = {
             }
         },
         {
-            "asset": {
-                "url": "https://www.youtube.com/watch?v=kfchvCyHmsc"
-            },
+            "asset": "late for work",
             "tick": 4,
             "track": 1,
             "trim": {
@@ -112,27 +97,14 @@ var protovideo = {
 
 fusion(protovideo).then(function(video) {
     console.log(JSON.stringify(video, null, 4))
-})/*.catch(function(error) {
-    console.log(error)
-})*/
+})
 
-function flatten(protovideo) {
-    return new Bluebird(function(resolve, reject) {
-        resolve(protovideo)
-    })
-}
+module.exports = fusion
 
-//todo: handle null values in clips (trim, size, POSITION, etc)
 //todo: render [blackness] during transform?
 //todo: convert from and to data uri
 //todo: probe data in clips
 //todo: unlink any and all temp clips
 //todo: check for clip dir before writing
 //todo: rename "screen" and "position"
-
-//todo: move duration into asset json
-//todo: allow http urls, not just youtube urls
-//todo: allow asset_id to reference protovideo dictionary
-//todo: clean up flatten a bit? SORT before starting.
-
-module.exports = fusion
+//todo: handle null values in clips (trim, size, POSITION, etc)

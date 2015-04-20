@@ -1,10 +1,10 @@
 var Bluebird = require("bluebird")
 
-function flatten(clips) {
+function flatten(protovideo) {
     return new Bluebird(function(resolve, reject) {
-		clips = replaceSpaceWithBlackness(clips)
-	    clips = trimAndOverlay(clips)
-        resolve(clips)
+		protovideo.clips = replaceSpaceWithBlackness(protovideo.clips)
+	    protovideo.clips = trimAndOverlay(protovideo.clips)
+        resolve(protovideo)
     })
 }
 
@@ -173,3 +173,6 @@ function makeControlClip(project_id, controlName, tick, duration)
 }
 
 module.exports = flatten
+
+//todo: clean up some of the mess.
+//todo: sort before processing.

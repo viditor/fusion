@@ -1,20 +1,26 @@
 var Bluebird = require("bluebird")
 var Fluently = require("fluent-ffmpeg")
 
-function probe(video) {
-    return new Bluebird(function(resolve, reject) {
-        /*Fluently.ffprobe(clip.file, function(error, data) {
-            if(error)
-            {
-                reject(error)
-            }
-            else
-            {
-                clip.duration = data.format.duration
-                resolve(clip)
-            }
-        })*/
+function probe(protovideo) {
+    return Bluebird.map(protovideo.clips, function(clip) {
+        return new Bluebird(function(resolve, reject) {
+            Fluently.ffprobe(clip.asset.file, function(error, probe) {
+                if(error) {
+                    reject(error)
+                } else {
+                    clip.asset.duration = probe.format.duration
+                    clip.asset.size = {
+                        width: probe.streams[0].width,
+                        height: probe.streams[0].height
+                    }
+                    resolve(clip)
+                }
+            })
+        })
+    }).then(function(clips) {
+        protovideo.clips = clips
+        return protovideo
     })
 }
 
-module.export = probe
+module.exports = probe
