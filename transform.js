@@ -1,5 +1,5 @@
-var path = require("path")
 var fs = require("fs")
+var path = require("path")
 var ShortID = require("shortid")
 var Bluebird = require("bluebird")
 var Fluently = require("fluent-ffmpeg")
@@ -7,74 +7,62 @@ var Fluently = require("fluent-ffmpeg")
 function transform(protovideo) {
     return Bluebird.map(protovideo.clips, function(clips) {
         return new Bluebird(function(resolve, reject) {
-            var screen = JSON.parse(JSON.stringify(protovideo.screen))
-            if(screen.color != undefined) {
-                if(!/^#([0-9a-f]{3}){1,2}$/i.test(screen.color)) {
-                    throw new Error("The color must be hex value.")
-                }
-                screen.color = screen.color.substring(1)
-                if(screen.color.length === 3) {
-                    screen.color = screen.color[0] + screen.color[0]
-                                 + screen.color[1] + screen.color[1]
-                                 + screen.color[2] + screen.color[2]
-                }
-                screen.color = "0x" + screen.color
+            if(protovideo.color == undefined) {
+                protovideo.color = "0x000000"
             } else {
-                screen.color = "0x000000"
+                if(!/^0x[0-9a-f]{6}$/i.test(protovideo.color)) {
+                    if(/^#([0-9a-f]{3}){1,2}$/i.test(protovideo.color)) {
+                        protovideo.color = hash2hex(protovideo.color)
+                    } else {
+                        throw new Error("The background color must be hex value.")
+                    }
+                }
             }
-            if(screen.width == undefined && screen.height == undefined) {
+            if(protovideo.width == undefined && protovideo.height == undefined) {
                 throw new Error("The video must have a width and height.")
             }
-            clips = JSON.parse(JSON.stringify(clips))
+            
             for(var index in clips) {
                 var clip = clips[index]
-                if(clip.trim === undefined) {
+                if(clip.trim == undefined) {
                     clip.trim = new Object()
-                }
-                if(clip.trim.left === undefined) {
+                } if(clip.trim.left == undefined) {
                     clip.trim.left = 0
-                }
-                if(clip.trim.right === undefined) {
+                } if(clip.trim.right == undefined) {
                     clip.trim.right = 0
                 }
-                if(clip.position === undefined) {
-                    clip.position = new Object()
-                }
-                if(clip.position.x === undefined) {
-                    clip.position.x = 0
-                }
-                if(clip.position.y === undefined) {
-                    clip.position.y = 0
-                }
-                if(clip.size === undefined) {
+                if(clip.size == undefined) {
                     clip.size = new Object()
+                } if(clip.size.width == undefined) {
+                    clip.size.width = clip.asset.size.width
+                } if(clip.size.height == undefined) {
+                    clip.size.height = clip.asset.size.height
                 }
-                if(clip.size.width === undefined) {
-                    clip.size.width = screen.width
+                if(clip.offset == undefined) {
+                    clip.offset = new Object()
+                } if(clip.offset.x == undefined) {
+                    clip.offset.x = 0
+                } if(clip.offset.y == undefined) {
+                    clip.offset.y = 0
                 }
-                if(clip.size.height === undefined) {
-                    clip.size.height = screen.height
-                }
+                //todo: set default offset from size?
             }
-
-            var directory = path.join(__dirname, "/../clips")
-            if(!fs.existsSync(directory)) {
-                fs.mkdir(directory)
+            
+            var clip_directory = path.join(__dirname, "clips")
+            if(!fs.existsSync(clip_directory)) {
+                fs.mkdir(clip_directory)
             }
-
-            var new_clip = new Object()
-            new_clip.clip_id = ShortID.generate()
-            new_clip.file = "./clips/" + new_clip.clip_id + ".mp4"
-
+            var clip_file = path.join(clip_directory, ShortID.generate() + ".mp4")
+            
             var process = new Fluently()
-            process.addOutput(new_clip.file)
-
+            process.addOutput(clip_file)
+            
             var filters = new Array()
             filters.push({
                 "filter": "color",
                 "options": {
-                    "color": screen.color,
-                    "size": screen.width + "x" + screen.height
+                    "color": protovideo.color,
+                    "size": protovideo.width + "x" + protovideo.height
                 },
                 "outputs": "nv:0"
             })
@@ -82,23 +70,25 @@ function transform(protovideo) {
                 "filter": "aevalsrc",
                 "options": {
                     "exprs": 0,
-                    "duration": 1
+                    "duration": 0.25
                 },
                 "outputs": "[na:0]"
             })
             var video_output = "nv:0"
             var audio_output = "na:0"
+            var clip_duration = 0
             for(var index in clips)
             {
                 var clip = clips[index]
                 process.addInput(clip.asset.file)
+                clip_duration = Math.max(clip_duration, clip.asset.duration - clip.trim.left - clip.trim.right)
                 video_output = "nv:" + (parseInt(index) + 1)
                 audio_output = "na:" + (parseInt(index) + 1)
                 filters.push({
                     "filter": "trim",
                     "options": {
                         "start": clip.trim.left,
-                        "end": clip.duration - clip.trim.right
+                        "end": clip.asset.duration - clip.trim.right
                     },
                     "inputs": index + ":v",
                     "outputs": "v:" + index + ":a"
@@ -122,8 +112,8 @@ function transform(protovideo) {
                     "filter": "overlay",
                     "options": {
                         "shortest": 1, //?!
-                        "x": clip.position.x,
-                        "y": clip.position.y
+                        "x": clip.offset.x,
+                        "y": clip.offset.y
                     },
                     "inputs": [
                         "nv:" + index,
@@ -135,7 +125,7 @@ function transform(protovideo) {
                     "filter": "atrim",
                     "options": {
                         "start": clip.trim.left,
-                        "end": clip.duration - clip.trim.right
+                        "end": clip.asset.duration - clip.trim.right
                     },
                     "inputs": index + ":a",
                     "outputs": "a:" + index + ":a",
@@ -160,12 +150,34 @@ function transform(protovideo) {
             process.on("error", function(error) {
                 reject(error)
             })
+            //process.on("error", function(error, stdout, stderr) {
+            //    console.log(stdout)
+            //    console.log(stderr)
+            //})
             process.on("end", function() {
-                resolve(new_clip)
+                resolve({
+                    "file": clip_file,
+                    "duration": clip_duration
+                })
             })
             process.run()
         })
+    }).then(function(clips) {
+        delete protovideo.color
+        protovideo.clips = clips
+        return protovideo
     })
 }
 
 module.exports = transform
+
+function hash2hex(color) {
+    color = color.substring(1)
+    if(color.length == 3) {
+        color = color[0] + color[0]
+              + color[1] + color[1]
+              + color[2] + color[2]
+    }
+    color = "0x" + color
+    return color
+}

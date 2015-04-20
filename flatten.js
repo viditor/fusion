@@ -11,6 +11,7 @@ function flatten(protovideo) {
 // Adds blackness in the space between clips
 function replaceSpaceWithBlackness(clips)
 {
+    clips = JSON.parse(JSON.stringify(clips))
     var previousEndTick = 0;
     for (var i = 0; i < clips.length; i++)
     {
@@ -24,18 +25,19 @@ function replaceSpaceWithBlackness(clips)
 			clip = {
 				track: 0,
 				tick: previousEndTick,
-				duration: timeBetweenPrevious,
-				asset: "[blackness]",
+				asset: {
+                    file: null,
+                    duration: timeBetweenPrevious
+                },
 				trim: {
 					left: 0,
 					right: 0
 				}
 			}
             clips.splice(i, 0, clip);
-			//previousEndTick = clip.tick + clip.duration;
             i++;
         }
-        previousEndTick = clip.tick + clip.duration;
+        previousEndTick = clip.tick + clip.asset.duration;
     }
     return clips;
 }
@@ -43,6 +45,7 @@ function replaceSpaceWithBlackness(clips)
 // Cuts clips at boundary points and overlays when necessary
 function trimAndOverlay(clips)
 {
+    clips = JSON.parse(JSON.stringify(clips))
     var pointClipLinks = getPointClipLinks(clips);
 
     var outputClips = [];
@@ -122,7 +125,7 @@ function getPointClipLinks(clips)
     {
         var clip = clips[i];
         var leftSide = clip.tick + clip.trim.left;
-        var rightSide = clip.tick + clip.duration - clip.trim.right;
+        var rightSide = clip.tick + clip.asset.duration - clip.trim.right;
 
         pointClipLinks = addToListInMap(pointClipLinks, leftSide, {"clip": clip, "type": "start"});
         pointClipLinks = addToListInMap(pointClipLinks, rightSide, {"clip": clip, "type": "end"});
@@ -144,7 +147,7 @@ function addToListInMap(map, key, value)
 function alignClip(clip, targetStart, targetEnd)
 {
     var actualStart = clip.tick;
-    var actualEnd = clip.tick + clip.duration;
+    var actualEnd = clip.tick + clip.asset.duration;
 
     clip.trim.left = targetStart - actualStart;
     clip.trim.right = actualEnd - targetEnd;
@@ -155,21 +158,6 @@ function alignClip(clip, targetStart, targetEnd)
 // Creates a clone of a clip object
 function cloneClip(clip) {
     return JSON.parse(JSON.stringify(clip));
-}
-
-// Creates a clip with the specified project_id, controlName, tick, and duration
-function makeControlClip(project_id, controlName, tick, duration)
-{
-    return {
-        "trim":
-        {
-            "left": 0,
-            "right": 0
-        },
-        //"tick": parseInt(tick),
-        "duration": parseInt(duration),
-        //"track": 0
-    };
 }
 
 module.exports = flatten

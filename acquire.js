@@ -41,14 +41,14 @@ var Bluebird = require("bluebird")
 
 function youtube(youtube_url) {
     return new Bluebird(function(resolve, reject) {
-        var directory = path.join(__dirname, "/../assets")
-        if(!fs.existsSync(directory)) {
-            fs.mkdir(directory)
+        var asset_directory = path.join(__dirname, "assets")
+        if(!fs.existsSync(asset_directory)) {
+            fs.mkdir(asset_directory)
         }
         //todo: use youtube_id instead of asset_id
         //todo: throw an error for bad youtube_urls
         var asset_id = ShortID.generate()
-        var asset_file = path.join(directory, asset_id + ".flv")
+        var asset_file = path.join(asset_directory, asset_id + ".flv")
         //todo: be flexible about video quality
         var process = ytdl(youtube_url, {"quality": 5})
         process.on("error", function(error) {
