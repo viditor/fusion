@@ -5,9 +5,11 @@ var Fluently = require("fluent-ffmpeg")
 var merge = require("./scripts/merge.js")
 var transform = require("./scripts/transform.js")
 var youtube = require("./scripts/youtube.js")
+var flatten = require("./scripts/flatten.js")
 
 function acquire(clips) {
     return Bluebird.map(clips, function(clip, index) {
+        //if(clip.asset is a number) {}
         //if(clip.asset.data != undefined) {} else
         if(clip.asset.url != undefined) {
             if(clip.asset.url.indexOf("youtube.com") != -1) {
@@ -31,7 +33,7 @@ function probe(clips) {
                 if(error) {
                     reject(error)
                 } else {
-                    clip.duration = probe.format.duration
+                    clip.duration = Math.floor(probe.format.duration)
                     resolve(clip)
                 }
             })
@@ -40,23 +42,17 @@ function probe(clips) {
 }
 
 function fusion(protovideo) {
-    return acquire(protovideo.clips)
-    .then(function(clips) {
-        return probe(clips)
-    }).then(function(clips) {
-        return clips
-    })
-    /*return Bluebird.map(clips, function(clip) {
-        return transform(screen, clip)
+    return acquire(protovideo.clips).then(probe).then(flatten).then(function(clips) {
+        return Bluebird.map(clips, function(clip) {
+            return transform(protovideo.screen, clip)
+        })
     }).then(function(clips) {
         return merge(clips)
-    }).then(function(clip) {
-        return clip
-    })*/
+    })
 }
 
 var protovideo = {
-    "surface": {
+    "screen": {
         "width": 1280,
         "height": 720
     },
@@ -68,7 +64,7 @@ var protovideo = {
             "tick": 0,
             "track": 0,
             "trim": {
-                "left": 2.05,
+                "left": 2,
                 "right": 0
             },
             "size": {
@@ -80,25 +76,45 @@ var protovideo = {
             "asset": {
                 "url": "https://www.youtube.com/watch?v=kfchvCyHmsc"
             },
-            "tick": 6,
-            "track": 0,
+            "tick": 4,
+            "track": 1,
             "trim": {
-                "left": 2.05,
+                "left": 2,
+                "right": 0
+            },
+            "size": {
+                "width": 640,
+                "height": 360
+            },
+            "position": {
+                "x": 640,
+                "y": 360
+            }
+        },
+        //uncomment for [blackness]!
+        /*{
+            "asset": {
+                "url": "https://www.youtube.com/watch?v=kfchvCyHmsc"
+            },
+            "tick": 4+8+4+1,
+            "track": 1,
+            "trim": {
+                "left": 2,
                 "right": 0
             },
             "size": {
                 "width": 1280,
                 "height": 720
             }
-        }
+        }*/
     ]
 }
 
 fusion(protovideo).then(function(video) {
-    console.log(video)
-}).catch(function(error) {
+    console.log(JSON.stringify(video, null, 4))
+})/*.catch(function(error) {
     console.log(error)
-})
+})*/
 
 function flatten(protovideo) {
     return new Bluebird(function(resolve, reject) {
@@ -106,11 +122,17 @@ function flatten(protovideo) {
     })
 }
 
-//todo: flatten the clips before transforming
-//todo: handle null values in clips
+//todo: handle null values in clips (trim, size, POSITION, etc)
+//todo: render [blackness] during transform?
 //todo: convert from and to data uri
 //todo: probe data in clips
 //todo: unlink any and all temp clips
 //todo: check for clip dir before writing
+//todo: rename "screen" and "position"
+
+//todo: move duration into asset json
+//todo: allow http urls, not just youtube urls
+//todo: allow asset_id to reference protovideo dictionary
+//todo: clean up flatten a bit? SORT before starting.
 
 module.exports = fusion

@@ -1,3 +1,5 @@
+var path = require("path")
+var fs = require("fs")
 var ShortID = require("shortid")
 var Bluebird = require("bluebird")
 var Fluently = require("fluent-ffmpeg")
@@ -22,27 +24,51 @@ function transform(screen, clips) {
         if(screen.width == undefined && screen.height == undefined) {
             throw new Error("The video must have a width and height.")
         }
-        
+
         clips = JSON.parse(JSON.stringify(clips))
         for(var index in clips) {
             var clip = clips[index]
-            //if no position or dimensions?
-                //fit, with padding if not perfect fit
-            //if no position, but has dimensions?
-                //center
-            //if no dimensions, but position? <- rename to scale
-                //do not scale?
-            //if no trim?
-                //do not trim?
+            if(clip.trim === undefined) {
+                clip.trim = new Object()
+            }
+            if(clip.trim.left === undefined) {
+                clip.trim.left = 0
+            }
+            if(clip.trim.right === undefined) {
+                clip.trim.right = 0
+            }
+            if(clip.position === undefined) {
+                clip.position = new Object()
+            }
+            if(clip.position.x === undefined) {
+                clip.position.x = 0
+            }
+            if(clip.position.y === undefined) {
+                clip.position.y = 0
+            }
+            if(clip.size === undefined) {
+                clip.size = new Object()
+            }
+            if(clip.size.width === undefined) {
+                clip.size.width = screen.width
+            }
+            if(clip.size.height === undefined) {
+                clip.size.height = screen.height
+            }
         }
-        
+
+        var directory = path.join(__dirname, "/../clips")
+        if(!fs.existsSync(directory)) {
+            fs.mkdir(directory)
+        }
+
         var new_clip = new Object()
         new_clip.clip_id = ShortID.generate()
         new_clip.file = "./clips/" + new_clip.clip_id + ".mp4"
-        
+
         var process = new Fluently()
         process.addOutput(new_clip.file)
-        
+
         var filters = new Array()
         filters.push({
             "filter": "color",
@@ -65,7 +91,7 @@ function transform(screen, clips) {
         for(var index in clips)
         {
             var clip = clips[index]
-            process.addInput(clip.file)
+            process.addInput(clip.asset.file)
             video_output = "nv:" + (parseInt(index) + 1)
             audio_output = "na:" + (parseInt(index) + 1)
             filters.push({
@@ -86,8 +112,8 @@ function transform(screen, clips) {
             filters.push({
                 "filter": "scale",
                 "options": {
-                    "width": clip.dimensions.width,
-                    "height": clip.dimensions.height
+                    "width": clip.size.width,
+                    "height": clip.size.height
                 },
                 "inputs": "v:" + index + ":b",
                 "outputs": "v:" + index + ":c"
@@ -130,7 +156,7 @@ function transform(screen, clips) {
             })
         }
         process.complexFilter(filters, [video_output, audio_output])
-        
+
         process.on("error", function(error) {
             reject(error)
         })
