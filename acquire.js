@@ -12,17 +12,21 @@ function acquire(protovideo) {
             }
         }
         if(clip.asset.data != undefined) {
-            //todo: save data to file
-                //http://stackoverflow.com/q/11335460
+            return acquire_data(clip.asset.data).then(function(asset_file) {
+                clip.asset.file = asset_file
+                return clip
+            })
         } else if(clip.asset.url != undefined) {
             if(clip.asset.url.indexOf("youtube.com") != -1) {
-                return youtube(clip.asset.url).then(function(asset_file) {
+                return acquire_youtube(clip.asset.url).then(function(asset_file) {
                     clip.asset.file = asset_file
                     return clip
                 })
             } else {
-                //todo: save file from http
-                    //http://stackoverflow.com/q/11944932
+                return acquire_http(clip.asset.url).then(function(asset_file) {
+                    clip.asset.file = asset_file
+                    return clip
+                })
             }
         } else {
             throw new Error("Clip #" + index + " has no asset.")
@@ -34,12 +38,13 @@ function acquire(protovideo) {
 }
 
 var fs = require("fs")
+var http = require("http")
 var path = require("path")
 var ytdl = require("ytdl-core")
 var ShortID = require("shortid")
 var Bluebird = require("bluebird")
 
-function youtube(youtube_url) {
+function acquire_youtube(youtube_url) {
     return new Bluebird(function(resolve, reject) {
         var asset_directory = path.join(__dirname, "assets")
         if(!fs.existsSync(asset_directory)) {
@@ -58,6 +63,46 @@ function youtube(youtube_url) {
             resolve(asset_file)
         })
         process.pipe(fs.createWriteStream(asset_file))
+    })
+}
+
+function acquire_http(url) {
+    return new Bluebird(function(resolve, reject) {
+        var asset_directory = path.join(__dirname, "assets")
+        if(!fs.existsSync(asset_directory)) {
+            fs.mkdir(asset_directory)
+        }
+        var asset_id = ShortID.generate()
+        var asset_file = path.join(asset_directory, asset_id + ".flv")
+        var request = http.get(url, function(response) {
+            response.pipe(fs.createWriteStream(asset_file))
+            response.on("end", function() {
+                resolve(asset_file)
+            })
+        })
+    })
+}
+
+function acquire_data(data) {
+    return new Bluebird(function(resolve, reject) {
+        var asset_directory = path.join(__dirname, "assets")
+        if(!fs.existsSync(asset_directory)) {
+            fs.mkdir(asset_directory)
+        }
+        var matches = data.match(/^data:.+\/(.+);base64,(.*)$/);
+        var data_ext = matches[1];
+        data = matches[2];
+        var asset_id = ShortID.generate()
+        var asset_file = path.join(asset_directory, asset_id + "." + data_ext)
+        var regex = /^data:.+\/(.+);base64,(.*)$/
+        data = new Buffer(data, "base64")
+        fs.writeFile(asset_file, data, function(error) {
+            if(error) {
+                reject(error)
+            } else {
+                resolve(asset_file)
+            }
+        });
     })
 }
 

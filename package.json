@@ -6,7 +6,8 @@
     "bluebird": "~2.9.24",
     "shortid": "~2.2.2",
     "ytdl-core": "~0.5.1",
-    "datauri": "~0.6.0"
+    "datauri": "~0.6.0",
+    "chalk": "~1.0.0"
   },
   "repository": {
     "type": "git",

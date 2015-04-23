@@ -22,4 +22,6 @@ function clean(protovideo) {
     })
 }
 
+//todo: always clean, even after errors are thrown
+
 module.exports = clean

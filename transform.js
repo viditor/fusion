@@ -22,8 +22,16 @@ function transform(protovideo) {
                 throw new Error("The video must have a width and height.")
             }
             
+            var clip_duration = 0
             for(var index in clips) {
                 var clip = clips[index]
+                if(clip.asset.duration - clip.trim.left - clip.trim.right > clip_duration) {
+                    clip_duration = clip.asset.duration - clip.trim.left - clip.trim.right
+                }
+                if(clip.asset.file == null) {
+                    //todo: better format for empty frames.
+                    break
+                }
                 if(clip.trim == undefined) {
                     clip.trim = new Object()
                 } if(clip.trim.left == undefined) {
@@ -38,6 +46,7 @@ function transform(protovideo) {
                 } if(clip.size.height == undefined) {
                     clip.size.height = clip.asset.size.height
                 }
+                //todo: "autopad" default offset?
                 if(clip.offset == undefined) {
                     clip.offset = new Object()
                 } if(clip.offset.x == undefined) {
@@ -45,7 +54,6 @@ function transform(protovideo) {
                 } if(clip.offset.y == undefined) {
                     clip.offset.y = 0
                 }
-                //todo: set default offset from size?
             }
             
             var clip_directory = path.join(__dirname, "clips")
@@ -62,7 +70,8 @@ function transform(protovideo) {
                 "filter": "color",
                 "options": {
                     "color": protovideo.color,
-                    "size": protovideo.width + "x" + protovideo.height
+                    "size": protovideo.width + "x" + protovideo.height,
+                    "duration": clip_duration
                 },
                 "outputs": "nv:0"
             })
@@ -76,12 +85,13 @@ function transform(protovideo) {
             })
             var video_output = "nv:0"
             var audio_output = "na:0"
-            var clip_duration = 0
             for(var index in clips)
             {
                 var clip = clips[index]
+                if(clip.asset.file == null) {
+                    break
+                }
                 process.addInput(clip.asset.file)
-                clip_duration = Math.max(clip_duration, clip.asset.duration - clip.trim.left - clip.trim.right)
                 video_output = "nv:" + (parseInt(index) + 1)
                 audio_output = "na:" + (parseInt(index) + 1)
                 filters.push({
@@ -155,6 +165,8 @@ function transform(protovideo) {
             //    console.log(stderr)
             //})
             process.on("end", function() {
+                //todo: store the data in a clip variable
+                //      before it needs to be resolved.
                 resolve({
                     "file": clip_file,
                     "duration": clip_duration
