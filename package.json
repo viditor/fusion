@@ -1,14 +1,19 @@
 {
   "name": "fusion",
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "main": "index.js",
   "dependencies": {
-    "fluent-ffmpeg": "~2.0.0-rc3",
     "bluebird": "~2.9.24",
-    "shortid": "~2.2.2",
-    "ytdl-core": "~0.5.1",
+    "chalk": "~1.0.0",
     "datauri": "~0.6.0",
-    "chalk": "~1.0.0"
+    "fluent-ffmpeg": "~2.0.0-rc3",
+    "shortid": "~2.2.2",
+    "ytdl-core": "~0.5.1"
   },
+  "contributors": [
+    "Andrew McPherson",
+    "Timothy Zorca"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/viditor/fusion"
